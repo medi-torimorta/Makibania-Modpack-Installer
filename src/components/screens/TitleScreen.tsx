@@ -6,6 +6,7 @@ import {
   IconButton,
   Stack,
   Typography,
+  useTheme,
 } from "@mui/material";
 
 import { invoke } from "@tauri-apps/api/core";
@@ -18,6 +19,7 @@ type TitleScreenProps = {
 };
 
 export default function TitleScreen(props: TitleScreenProps) {
+  const theme = useTheme();
   const buttonWidth = 36;
   return (
     <Container
@@ -36,7 +38,7 @@ export default function TitleScreen(props: TitleScreenProps) {
           fontWeight={700}
           textAlign="center"
           sx={{
-            background: "linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)",
+            background: `linear-gradient(45deg, ${theme.palette.primary.dark} 30%, ${theme.palette.primary.light} 90%)`,
             backgroundClip: "text",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",

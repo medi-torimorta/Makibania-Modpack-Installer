@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    minecraft_modpack_installer_lib::run()
+    makibania_modpack_installer_lib::run()
 }

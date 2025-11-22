@@ -17,7 +17,7 @@
             "args": [
                 "tauri",
                 "icon",
-                "${workspaceFolder}/public/app-icon.svg"
+                "${workspaceFolder}/public/app-icon.png"
             ]
         }
     ]

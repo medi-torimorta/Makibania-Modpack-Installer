@@ -178,6 +178,20 @@ export default function InstallerScreen(props: InstallerScreenProps) {
           </Alert>
         ))}
       </Stack>
+      <img
+        src="/makiba-usagi.gif"
+        alt="Makiba Usagi"
+        style={{
+          position: "absolute",
+          bottom: 0,
+          right: 0,
+          width: "30vw",
+          height: "30vw",
+          maxWidth: "500px",
+          maxHeight: "500px",
+          pointerEvents: "none",
+        }}
+      />
       <Dialog
         open={errorMessage != null}
         aria-describedby="description"

@@ -10,6 +10,7 @@ import {
   DialogContentText,
 } from "@mui/material";
 
+import { createTheme, ThemeProvider } from "@mui/material/styles";
 import { invoke } from "@tauri-apps/api/core";
 import { exit } from "@tauri-apps/plugin-process";
 import { useEffect, useRef, useState } from "react";
@@ -33,6 +34,17 @@ type ModeResult = {
 };
 
 export default function App() {
+  const theme = createTheme({
+    palette: {
+      primary: {
+        main: "#d35555",
+      },
+      secondary: {
+        main: "#6fb1af",
+      },
+    },
+  });
+
   const [initializedStatus, setInitialized] = useState<TitleStatus | null>(
     null
   );
@@ -98,7 +110,7 @@ export default function App() {
   };
 
   return (
-    <>
+    <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
         <TitleBar
@@ -130,6 +142,6 @@ export default function App() {
       >
         <CircularProgress color="inherit" />
       </Backdrop>
-    </>
+    </ThemeProvider>
   );
 }
