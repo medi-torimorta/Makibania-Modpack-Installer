@@ -1,45 +1,38 @@
 # yaml-language-server: $schema=../config.schema.json
-schemaVersion: 2
-packVersion: "1.0.0"
+schemaVersion: 1
 profile:
-  name: Example Modpack
-  icon: Furnace
-  version: 1.20.1-forge-47.2.20
+  name: Makibania
+  icon: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAAXNSR0IArs4c6QAABHZJREFUeJztmk9r1EAYxh//HEwrtoK7CAV3FUEU/QZCZT3oXbzo1Z4r9rDiwaKHYg8r7VmveusXKHYvHtRbD4IoQneF1iW1tNXdpJ7Wg/uGyewkmZmdSYLmB4HdZJLM88w7k5k3AQoKCgr+Yw5lXYFRqU05TwA8jjj8tLnpz8edn5kBjXKlL9o/57al6sQKH5upCst4L1r0M9KITAxolCv9e3fuhvadKJ0CADxfXo41QSTc9z1hWccZAxBvROoGNMqVZwDqvAHEidKpSBNqU04fSBbOwxvR3PSDax+Wr7oxIsWzDIwKqE05/bGZKsZmqvB9T1o8gKA8nU9GAikbwIsS8XP7Bx7MzgJAnfaReFXhPKwRZMJRQQXr3HmLc277ofZdw0i1Plsfuvf39jYmy+NGKvG9vY2Jwe8gAkj8g9lZsBuAukzLJaFyDVEUXFw/hj23hz23p10HOv+2fyXYd5ipXP3enbv4uf0jtBk0Qan1RUy3SphulZSNoPI33SpuutXQMYqA+q3adeHJhk0wgqwRccIJqUEwjyYA0UbICCeknwJ5NQEYNkJGOKH0GBQNTnliulWSFk5ozwNUoiBvEcMSMmC300k8Ie9RoMpIM0GFlo18ymSNlgH/UhSQAYsrzTWtC6TRv5ub/qEtdwfu3i+4e7+0r+N7PfheD6tv3wcrQu0ukHYUkAk6RpDw9S8trH9pDS+H2cWOzEDIk9YoP6j4U1kjeOH4mxAJ5RnYCFDuBjaj4PnyMgAs8vubm/58khFRwkVpsaP8DuBvFJw8fdqQFH3iluEDMfO1KefJlrvzGAC23B2+WGJSNDBgzm0/bJQr2i3Jrt3ThIzQPT+LlFgiL1+/AgThbwPegGAckB0MbY0DaUVTyAAbN1V9QqTZ+oB4EFxcaa7Vb9WuKw+GjNhQNMhOg0l8mmOJ8L1Ao1zpU6VlDaB8PgBQ6ou6kcw1BuKBnBjwDMwCJo1HIvtmaEAqRkS+GdKJAhNwRlg34UjUgRvjk86njY2rl86ew0G3C+f4cZv1CPjtefjtebhWq+Hdhw9Xb4xPOqu9/Te27hf7bpCNAsBsJEwsLYT+799/NFSGGVesRUKSAaGxADBjwsTSwpBg0T4g/mWpCWJnggPXQ4skmQnSxNJCsMmyf/9RbHlbK87EqTBvQlIEUEvSpmoCj+28g9RaQBQJIkRhLDJBJDQrUlkMmRJsoxuoGFC/cKZi+v5S2OwGShFw+fz52OMmWlplzDBBrvIBUY9Cm+TGgCzEAzkxICvxQA4MkBUflSUeFWFWOA7VJEnSoKbS8jbWA8oGqGIitHVe1siSeRdIYrfTwWAGaiVPqGKAcsZ4VFjxtpbD0gbwFbBpwm6nk4p4ICYjJILNEgEwmina7XRw0O3ioNvFSnMNnzY2gBRSYspJBj5LROgmSthIYlabqWWGdQwYyhKxyBjBd58shBNaaSb2o2rdb38+fv2Kz9/a9Dd14cRIeTb+6/ILZyqRK0ZOMJGZcMJYojHiU3uezAUXFBQUFDD8AYTC3EgUSH2vAAAAAElFTkSuQmCC"
+  version: neoforge-21.1.215
   jvmArgs: -Xms4G -Xmx8G
 modLoader:
-  name: Minecraft Forge
-  url: https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.2.20/forge-1.20.1-47.2.20-installer.jar
-  hash: 4266b58662d26244956c1becaefeb2963fcbde55
+  name: NeoForge
+  url: https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.215/neoforge-21.1.215-installer.jar
+  hash: c4d0035fa61fa24460831e3c686d3f68227e9d54
   autoOpen: true
 mods:
-  - name: Create
-    type: curseforge
-    projectId: 328085
-    fileId: 4835191
-    hash: "3fee3c26ebbfdfd59e1371ab73ba1f61b44ef6d0"
-    side: both
-  - name: Just Enough Items
-    type: curseforge
-    projectId: 238222
-    fileId: 5074448
-    hash: "73c4aca184386b01bec8d0e1ba8d8cbec933e444"
-    side: both
-  - name: Conditional Tips
+  - name: Makibania
     type: direct
-    url: https://github.com/kyazuki/ConditionalTips/releases/download/v1.0.2/conditional_tips-1.0.2.jar
-    hash: "4a47f1cb8f584babb29b8266d05183fafac2a63a"
+    url: https://github.com/kyazuki/Makibania-Modpack-Resources/releases/download/v1.0.0/makibania-neoforge-1.1.0+mc1.21.1.jar
+    hash: 8599cf208babe57f93771be43afe20d1d91936fc
     side: both
 resources:
-  - name: BSL Shaders
-    type: curseforge
-    projectId: 322506
-    fileId: 5077991
-    hash: "5c10ed196eb5bb5b2b36685803775b2ae72eb378"
-    targetDir: shaderpacks
-    side: client
-  - name: CraftTweaker Script
+  - name: Default Config Files
     type: direct
-    url: https://raw.githubusercontent.com/CraftTweaker/CraftTweaker/1.19/Common/src/main/resources/data/crafttweaker/scripts/crafttweaker_hello_world.zs
-    hash: "a61ac9cb002cc915a88b057c794f5106fc99f1bd"
-    targetDir: scripts
+    url: https://github.com/kyazuki/Makibania-Modpack-Resources/releases/download/v1.0.0/configureddefaults.zip
+    hash: 751327a3fc5c27380c152fc761354db45feadad7
+    targetDir: configureddefaults
+    decompress: true
+    side: both
+  - name: Makibania Data Pack
+    type: direct
+    url: https://github.com/kyazuki/Makibania-Modpack-Resources/releases/download/v1.0.0/MakibaniaDatapack.zip
+    hash: 5785ec1d430114b4ff63dcea4e31fed38c903274
+    targetDir: datapacks
+    side: both
+  - name: Makibania Resource Pack
+    type: direct
+    url: https://github.com/kyazuki/Makibania-Modpack-Resources/releases/download/v1.0.0/MakibaniaResourcepack.zip
+    hash: ae8e8a3c4c417226ed8258acf7e8a5604d72bcd3
+    targetDir: resourcepacks
     side: both
