@@ -271,6 +271,11 @@ impl Installer {
             // v1.2.0 update
             steps += 1; // Update configs
         }
+        let v1_2_1 = Version::parse("1.2.1").unwrap();
+        if now < &v1_2_1 && new >= &v1_2_1 {
+            // v1.2.1 update
+            steps += 1; // Update configs
+        }
         steps
     }
 
@@ -479,6 +484,23 @@ impl Installer {
             )?;
             *completed_steps += 1u32;
             self.emit_progress(*completed_steps as f32 / total_steps as f32);
+        }
+        let v1_2_1 = Version::parse("1.2.1").unwrap();
+        if now < &v1_2_1 && new >= &v1_2_1 {
+            // v1.2.1 update
+            log::info!("Updating config files for v1.2.1...");
+            let url = "https://github.com/kyazuki/Makibania-Modpack-Resources/releases/download/v1.2.1/configs.zip";
+            self.ensure_download(
+                url,
+                "configs",
+                "9e5f63a8b1a6da42792ffc1563dcd6c6f6eac495",
+                &self.install_dir.join("config"),
+                true,
+                *completed_steps,
+                total_steps,
+            )?;
+            *completed_steps += 1u32;
+            self.emit_progress(*completed_steps as f32 / total_steps as f32)
         }
         self.emit_change_detail("");
 
