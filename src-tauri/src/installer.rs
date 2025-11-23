@@ -266,6 +266,11 @@ impl Installer {
 
     fn get_update_settings_steps(now: &Version, new: &Version) -> u32 {
         let mut steps = 0u32;
+        let v1_2_0 = Version::parse("1.2.0").unwrap();
+        if now < &v1_2_0 && new >= &v1_2_0 {
+            // v1.2.0 update
+            steps += 1; // Update configs
+        }
         steps
     }
 
@@ -456,6 +461,27 @@ impl Installer {
         completed_steps: &mut u32,
         total_steps: u32,
     ) -> Result<()> {
+        let now = state.get_pack_version();
+        let new = self.config.get_pack_version();
+        let v1_2_0 = Version::parse("1.2.0").unwrap();
+        if now < &v1_2_0 && new >= &v1_2_0 {
+            // v1.2.0 update
+            log::info!("Updating config files for v1.2.0...");
+            let url = "https://github.com/kyazuki/Makibania-Modpack-Resources/releases/download/v1.2.0/configs.zip";
+            self.ensure_download(
+                url,
+                "configs",
+                "4cb14e94845a0f03775c0d1b8f3f0cbddb675ddb",
+                &self.install_dir.join("config"),
+                true,
+                *completed_steps,
+                total_steps,
+            )?;
+            *completed_steps += 1u32;
+            self.emit_progress(*completed_steps as f32 / total_steps as f32);
+        }
+        self.emit_change_detail("");
+
         Ok(())
     }
 
