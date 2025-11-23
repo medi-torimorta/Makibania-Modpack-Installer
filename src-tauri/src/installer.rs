@@ -73,11 +73,10 @@ impl Installer {
 
     fn can_install_state(state: &InstallerState) -> Result<()> {
         match state.get_process_mode() {
-            None => bail!("Already installed."),
             Some(mode) if mode != InstallerMode::Install => {
                 bail!("Another mode ({:?}) is already in progress.", mode)
             }
-            Some(_) => Ok(()),
+            _ => Ok(()),
         }
     }
 
@@ -119,59 +118,67 @@ impl Installer {
         log::info!("Starting installation...");
         self.prepare_temp_dir()?;
         let installer_version = self.app.package_info().version.clone();
+        let mut is_retry = false;
         let mut state = if !self.state_path.exists() {
             InstallerState::new(&installer_version, &self.config.get_pack_version())
         } else {
             let s = InstallerState::load(&self.state_path)?;
             Self::can_install_state(&s)?;
-            log::info!("Resuming previous installation process...");
+            is_retry = s.get_process_mode().is_none();
+            if !is_retry {
+                log::info!("Resuming previous installation process...");
+            } else {
+                log::info!("Retry adding profile and launching mod loader...");
+            }
             s
         };
         state.set_process_mode(self.mode);
         state.save(&self.state_path)?;
-        let total_steps = self.total_download_steps(self.mode, &state);
-        let mut completed_steps = 0u32;
-        // Download Mod loader
-        self.emit_change_phase(Phase::DownloadModLoader);
-        let loader_config = &self.config.get_mod_loader();
-        if let Some(downloaded_loader) = state.get_mod_loader() {
-            if !downloaded_loader.equals(loader_config) {
-                log::error!(
-                    "Mod loader {} is downloaded, but uploaded file was changed. Skipping.",
-                    loader_config.name
-                );
+        if !is_retry {
+            let total_steps = self.total_download_steps(self.mode, &state);
+            let mut completed_steps = 0u32;
+            // Download Mod loader
+            self.emit_change_phase(Phase::DownloadModLoader);
+            let loader_config = &self.config.get_mod_loader();
+            if let Some(downloaded_loader) = state.get_mod_loader() {
+                if !downloaded_loader.equals(loader_config) {
+                    log::error!(
+                        "Mod loader {} is downloaded, but uploaded file was changed. Skipping.",
+                        loader_config.name
+                    );
+                } else {
+                    log::info!(
+                        "Mod loader {} is already downloaded, skipping download.",
+                        loader_config.name
+                    );
+                }
             } else {
-                log::info!(
-                    "Mod loader {} is already downloaded, skipping download.",
-                    loader_config.name
-                );
+                let file_name = self.ensure_download(
+                    &loader_config.url,
+                    &loader_config.name,
+                    &loader_config.hash,
+                    &self.install_dir,
+                    false,
+                    completed_steps,
+                    total_steps,
+                )?;
+                state.set_mod_loader(ModLoaderState {
+                    file_name,
+                    url: loader_config.url.clone(),
+                    hash: loader_config.hash.clone(),
+                });
+                state.save(&self.state_path)?;
             }
-        } else {
-            let file_name = self.ensure_download(
-                &loader_config.url,
-                &loader_config.name,
-                &loader_config.hash,
-                &self.install_dir,
-                false,
-                completed_steps,
-                total_steps,
-            )?;
-            state.set_mod_loader(ModLoaderState {
-                file_name,
-                url: loader_config.url.clone(),
-                hash: loader_config.hash.clone(),
-            });
-            state.save(&self.state_path)?;
+            completed_steps += 1u32;
+            self.emit_progress(completed_steps as f32 / total_steps as f32);
+            // Mods
+            self.emit_change_phase(Phase::DownloadMods);
+            self.download_mods(&mut state, &mut completed_steps, total_steps)?;
+            // Resources
+            self.emit_change_phase(Phase::DownloadResources);
+            self.download_resources(&mut state, &mut completed_steps, total_steps)?;
+            debug_assert_eq!(completed_steps, total_steps);
         }
-        completed_steps += 1u32;
-        self.emit_progress(completed_steps as f32 / total_steps as f32);
-        // Mods
-        self.emit_change_phase(Phase::DownloadMods);
-        self.download_mods(&mut state, &mut completed_steps, total_steps)?;
-        // Resources
-        self.emit_change_phase(Phase::DownloadResources);
-        self.download_resources(&mut state, &mut completed_steps, total_steps)?;
-        debug_assert_eq!(completed_steps, total_steps);
         self.emit_progress(1.);
         // Add profile to launcher
         self.emit_change_phase(Phase::AddProfile);
