@@ -5,6 +5,7 @@
     "type": "object",
     "required": [
         "schemaVersion",
+        "packVersion",
         "profile",
         "modLoader"
     ],
@@ -13,6 +14,12 @@
             "type": "integer",
             "description": "Schema version of this config file",
             "minimum": 1
+        },
+        "packVersion": {
+            "type": "string",
+            "description": "Version of this modpack (must be a valid semantic version, e.g., '1.0.0')",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+            "default": "1.0.0"
         },
         "profile": {
             "type": "object",

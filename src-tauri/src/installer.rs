@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use zip::ZipArchive;
@@ -22,13 +23,15 @@ use crate::{
 const STATE_FILE_NAME: &str = "installer-state.json";
 const TEMP_DIR_NAME: &str = ".temp";
 
-#[derive(Debug, Deserialize, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum InstallerMode {
     Install,
+    Update,
 }
 
 pub struct Installer {
+    mode: InstallerMode,
     app: AppHandle,
     download_manager: DownloadManager,
     config: ModPackConfig,
@@ -38,9 +41,15 @@ pub struct Installer {
 }
 
 impl Installer {
-    pub fn new(app: AppHandle, config_path: PathBuf, install_dir: PathBuf) -> Result<Self> {
+    pub fn new(
+        mode: InstallerMode,
+        app: AppHandle,
+        config_path: PathBuf,
+        install_dir: PathBuf,
+    ) -> Result<Self> {
         let app_dir = install_dir.join(APP_FOLDER_NAME);
         Ok(Self {
+            mode,
             app,
             download_manager: DownloadManager::new()?,
             config: ModPackConfig::load_from_path(&config_path)?,
@@ -50,27 +59,81 @@ impl Installer {
         })
     }
 
-    pub fn can_install() -> bool {
-        return PathBuf::from("config.yaml").exists();
+    pub fn can_install(cwd: &Path) -> Result<()> {
+        if !cwd.join("config.yaml").exists() {
+            bail!("Config file is not found.");
+        }
+        let state_path = cwd.join(APP_FOLDER_NAME).join(STATE_FILE_NAME);
+        if !state_path.exists() {
+            return Ok(());
+        }
+        let state = InstallerState::load(&state_path)?;
+        Self::can_install_state(&state)
     }
 
-    pub fn run(mut self, mode: InstallerMode) -> Result<()> {
+    fn can_install_state(state: &InstallerState) -> Result<()> {
+        match state.get_process_mode() {
+            None => bail!("Already installed."),
+            Some(mode) if mode != InstallerMode::Install => {
+                bail!("Another mode ({:?}) is already in progress.", mode)
+            }
+            Some(_) => Ok(()),
+        }
+    }
+
+    pub fn can_update(cwd: &Path) -> Result<()> {
+        let config = ModPackConfig::load_from_path(&cwd.join("config.yaml"))?;
+        let state_path = cwd.join(APP_FOLDER_NAME).join(STATE_FILE_NAME);
+        Self::can_update_state(&config, &state_path).map(|_| ())
+    }
+
+    fn can_update_state(config: &ModPackConfig, state_path: &Path) -> Result<InstallerState> {
+        if !state_path.exists() {
+            bail!("Installer state file is not found.");
+        }
+        let state = InstallerState::load(&state_path)?;
+        match state.get_process_mode() {
+            None => {
+                if config.get_pack_version() > state.get_pack_version() {
+                    Ok(state)
+                } else {
+                    bail!("No update is needed.");
+                }
+            }
+            Some(mode) if mode != InstallerMode::Update => {
+                bail!("Another mode ({:?}) is already in progress.", mode)
+            }
+            Some(_) => Ok(state),
+        }
+    }
+
+    pub fn run(mut self) -> Result<()> {
         self.emit_progress(0.);
-        match mode {
+        match self.mode {
             InstallerMode::Install => self.run_install(),
+            InstallerMode::Update => self.run_update(),
         }
     }
 
     fn run_install(&mut self) -> Result<()> {
         log::info!("Starting installation...");
         self.prepare_temp_dir()?;
-        let mut state =
-            InstallerState::load_or_new(&self.state_path, &self.app.package_info().version)?;
-        let total_steps = self.total_download_steps();
+        let installer_version = self.app.package_info().version.clone();
+        let mut state = if !self.state_path.exists() {
+            InstallerState::new(&installer_version, &self.config.get_pack_version())
+        } else {
+            let s = InstallerState::load(&self.state_path)?;
+            Self::can_install_state(&s)?;
+            log::info!("Resuming previous installation process...");
+            s
+        };
+        state.set_process_mode(self.mode);
+        state.save(&self.state_path)?;
+        let total_steps = self.total_download_steps(self.mode, &state);
         let mut completed_steps = 0u32;
         // Download Mod loader
         self.emit_change_phase(Phase::DownloadModLoader);
-        let loader_config = &self.config.mod_loader;
+        let loader_config = &self.config.get_mod_loader();
         if let Some(downloaded_loader) = state.get_mod_loader() {
             if !downloaded_loader.equals(loader_config) {
                 log::error!(
@@ -104,89 +167,10 @@ impl Installer {
         self.emit_progress(completed_steps as f32 / total_steps as f32);
         // Mods
         self.emit_change_phase(Phase::DownloadMods);
-        let mods_dir = self.get_mods_dir();
-        for mod_entry in &self.config.mods {
-            let needs_download = state.get_mod(mod_entry).map_or(true, |downloaded_mod| {
-                if !downloaded_mod.equals(mod_entry) {
-                    log::warn!(
-                        "Mod {} is downloaded, but uploaded file was changed.",
-                        mod_entry.name
-                    );
-                    true
-                } else {
-                    log::info!(
-                        "Mod {} is already downloaded, skipping download.",
-                        mod_entry.name
-                    );
-                    false
-                }
-            });
-            if needs_download {
-                let url = mod_entry.source.get_download_url();
-                let file_name = self.ensure_download(
-                    &url,
-                    &mod_entry.name,
-                    &mod_entry.hash,
-                    &mods_dir,
-                    false,
-                    completed_steps,
-                    total_steps,
-                )?;
-                state.add_mod(ModState {
-                    file_name,
-                    source: mod_entry.source.clone(),
-                    hash: mod_entry.hash.clone(),
-                });
-                state.save(&self.state_path)?;
-            }
-            completed_steps += 1u32;
-            self.emit_progress(completed_steps as f32 / total_steps as f32);
-        }
+        self.download_mods(&mut state, &mut completed_steps, total_steps)?;
         // Resources
         self.emit_change_phase(Phase::DownloadResources);
-        for resource_entry in &self.config.resources {
-            let needs_download =
-                state
-                    .get_resource(resource_entry)
-                    .map_or(true, |downloaded_resource| {
-                        if !downloaded_resource.equals(resource_entry) {
-                            log::warn!(
-                                "Resource {} is downloaded, but uploaded file was changed.",
-                                resource_entry.name
-                            );
-                            true
-                        } else {
-                            log::info!(
-                                "Resource {} is already downloaded, skipping download.",
-                                resource_entry.name
-                            );
-                            false
-                        }
-                    });
-            if needs_download {
-                let url = resource_entry.source.get_download_url();
-                let target_dir = self.get_resource_dir(resource_entry);
-                let file_name = self.ensure_download(
-                    &url,
-                    &resource_entry.name,
-                    &resource_entry.hash,
-                    &target_dir,
-                    resource_entry.decompress,
-                    completed_steps,
-                    total_steps,
-                )?;
-                state.add_resource(ResourceState {
-                    file_name,
-                    source: resource_entry.source.clone(),
-                    hash: resource_entry.hash.clone(),
-                    target_dir: resource_entry.target_dir.clone(),
-                    decompress: resource_entry.decompress,
-                });
-                state.save(&self.state_path)?;
-            }
-            completed_steps += 1u32;
-            self.emit_progress(completed_steps as f32 / total_steps as f32);
-        }
+        self.download_resources(&mut state, &mut completed_steps, total_steps)?;
         debug_assert_eq!(completed_steps, total_steps);
         self.emit_progress(1.);
         // Add profile to launcher
@@ -196,14 +180,64 @@ impl Installer {
             self.emit_add_alert(AlertLevel::Warning, "alertOnFailedAddProfile");
         }
         // Auto-open mod loader if configured
-        if self.config.mod_loader.auto_open {
+        if self.config.get_mod_loader().auto_open {
             self.emit_change_phase(Phase::LaunchModLoader);
             if let Err(e) = self.launch_mod_loader() {
                 log::warn!("Failed to launch mod loader: {e:?}");
                 self.emit_add_alert(AlertLevel::Warning, "alertOnFailedLaunchModLoader");
             }
         }
+        state.set_installer_version(&installer_version);
+        state.finalize(&self.state_path)?;
         log::info!("Installation completed.");
+
+        Ok(())
+    }
+
+    fn run_update(&mut self) -> Result<()> {
+        log::info!("Starting update...");
+        self.prepare_temp_dir()?;
+        let mut state = Self::can_update_state(&self.config, &self.state_path)?;
+        state.set_process_mode(self.mode);
+        state.save(&self.state_path)?;
+        let total_steps = self.total_download_steps(self.mode, &state);
+        let mut completed_steps = 0u32;
+        // Remove mods
+        self.emit_change_phase(Phase::RemoveMods);
+        let mods_dir = self.get_mods_dir();
+        let all_mods: Vec<ModState> = state.get_all_mods().into_iter().cloned().collect();
+        for mod_state in all_mods {
+            if !self.config.has_mod(&mod_state.source) {
+                let mod_path = mods_dir.join(&mod_state.file_name);
+                if mod_path.exists() {
+                    log::info!("Removing mod: {}", mod_state.file_name);
+                    fs::remove_file(&mod_path).with_context(|| {
+                        format!("Failed to remove mod file: {}", mod_path.display())
+                    })?;
+                } else {
+                    log::warn!("Mod file to remove does not exist: {}", mod_path.display());
+                }
+                state.remove_mod(&mod_state);
+                state.save(&self.state_path)?;
+            }
+            completed_steps += 1u32;
+            self.emit_progress(completed_steps as f32 / total_steps as f32);
+        }
+        // Add mods
+        self.emit_change_phase(Phase::DownloadMods);
+        self.download_mods(&mut state, &mut completed_steps, total_steps)?;
+        // Add resources
+        self.emit_change_phase(Phase::DownloadResources);
+        self.download_resources(&mut state, &mut completed_steps, total_steps)?;
+        // Update settings
+        self.emit_change_phase(Phase::UpdateSettings);
+        self.update_settings(&mut state, &mut completed_steps, total_steps)?;
+        debug_assert_eq!(completed_steps, total_steps);
+        self.emit_progress(1.);
+        state.set_installer_version(&self.app.package_info().version);
+        state.set_pack_version(&self.config.get_pack_version());
+        state.finalize(&self.state_path)?;
+        log::info!("Update completed.");
 
         Ok(())
     }
@@ -223,11 +257,27 @@ impl Installer {
         Ok(())
     }
 
-    fn total_download_steps(&self) -> u32 {
+    fn get_update_settings_steps(now: &Version, new: &Version) -> u32 {
         let mut steps = 0u32;
-        steps += 1; // Mod Loader
-        steps += self.config.mods.len() as u32;
-        steps += self.config.resources.len() as u32;
+        steps
+    }
+
+    fn total_download_steps(&self, mode: InstallerMode, state: &InstallerState) -> u32 {
+        let mut steps = 0u32;
+        if mode == InstallerMode::Install {
+            steps += 1; // Mod Loader
+        }
+        if mode == InstallerMode::Update {
+            steps += state.get_mod_count() as u32;
+        }
+        steps += self.config.get_mods().len() as u32;
+        steps += self.config.get_resources().len() as u32;
+        if mode == InstallerMode::Update {
+            steps += Self::get_update_settings_steps(
+                &state.get_pack_version(),
+                &self.config.get_pack_version(),
+            );
+        }
         steps
     }
 
@@ -294,7 +344,120 @@ impl Installer {
         self.install_dir.join(&entry.target_dir)
     }
 
+    fn download_mods(
+        &self,
+        state: &mut InstallerState,
+        completed_steps: &mut u32,
+        total_steps: u32,
+    ) -> Result<()> {
+        let mods_dir = self.get_mods_dir();
+        for mod_entry in self.config.get_mods() {
+            let needs_download = state.get_mod(mod_entry).map_or(true, |downloaded_mod| {
+                if !downloaded_mod.equals(mod_entry, false) {
+                    log::warn!(
+                        "Mod {} is downloaded, but uploaded file was changed.",
+                        mod_entry.name
+                    );
+                    true
+                } else {
+                    log::info!(
+                        "Mod {} is already downloaded, skipping download.",
+                        mod_entry.name
+                    );
+                    false
+                }
+            });
+            if needs_download {
+                let url = mod_entry.source.get_download_url();
+                let file_name = self.ensure_download(
+                    &url,
+                    &mod_entry.name,
+                    &mod_entry.hash,
+                    &mods_dir,
+                    false,
+                    *completed_steps,
+                    total_steps,
+                )?;
+                state.add_mod(ModState {
+                    file_name,
+                    source: mod_entry.source.clone(),
+                    hash: mod_entry.hash.clone(),
+                });
+                state.save(&self.state_path)?;
+            }
+            *completed_steps += 1u32;
+            self.emit_progress(*completed_steps as f32 / total_steps as f32);
+        }
+        Ok(())
+    }
+
+    fn download_resources(
+        &self,
+        state: &mut InstallerState,
+        completed_steps: &mut u32,
+        total_steps: u32,
+    ) -> Result<()> {
+        for resource_entry in self.config.get_resources() {
+            let needs_download =
+                state
+                    .get_resource(resource_entry)
+                    .map_or(true, |downloaded_resource| {
+                        if !downloaded_resource.equals(resource_entry) {
+                            log::warn!(
+                                "Resource {} is downloaded, but uploaded file was changed.",
+                                resource_entry.name
+                            );
+                            true
+                        } else {
+                            log::info!(
+                                "Resource {} is already downloaded, skipping download.",
+                                resource_entry.name
+                            );
+                            false
+                        }
+                    });
+            if needs_download {
+                let url = resource_entry.source.get_download_url();
+                let target_dir = self.get_resource_dir(resource_entry);
+                let file_name = self.ensure_download(
+                    &url,
+                    &resource_entry.name,
+                    &resource_entry.hash,
+                    &target_dir,
+                    resource_entry.decompress,
+                    *completed_steps,
+                    total_steps,
+                )?;
+                state.add_resource(ResourceState {
+                    file_name,
+                    source: resource_entry.source.clone(),
+                    hash: resource_entry.hash.clone(),
+                    target_dir: resource_entry.target_dir.clone(),
+                    decompress: resource_entry.decompress,
+                });
+                state.save(&self.state_path)?;
+            }
+            *completed_steps += 1u32;
+            self.emit_progress(*completed_steps as f32 / total_steps as f32);
+        }
+        Ok(())
+    }
+
+    fn update_settings(
+        &self,
+        state: &mut InstallerState,
+        completed_steps: &mut u32,
+        total_steps: u32,
+    ) -> Result<()> {
+        Ok(())
+    }
+
     fn emit_change_phase(&self, phase: Phase) {
+        debug_assert!(phase != Phase::DownloadModLoader || self.mode == InstallerMode::Install);
+        debug_assert!(phase != Phase::RemoveMods || self.mode == InstallerMode::Update);
+        debug_assert!(phase != Phase::UpdateSettings || self.mode == InstallerMode::Update);
+        debug_assert!(phase != Phase::AddProfile || self.mode == InstallerMode::Install);
+        debug_assert!(phase != Phase::LaunchModLoader || self.mode == InstallerMode::Install);
         emit_event(
             &self.app,
             InstallerEvent::ChangePhase(ChangePhasePayload { phase: phase }),
@@ -346,7 +509,7 @@ impl Installer {
             serde_json::from_str(&content).context("Failed to parse launcher_profiles.json")?;
         // Check if profile already exists
         for profile in launcher_profiles.profiles.values() {
-            if profile.name == self.config.profile.name {
+            if profile.name == self.config.get_profile().name {
                 log::info!(
                     "Launcher profile '{}' already exists, skipping addition.",
                     profile.name
@@ -362,12 +525,12 @@ impl Installer {
         let new_profile = LauncherProfile {
             created: Some(now_rounded),
             game_dir: Some(self.install_dir.clone()),
-            icon: self.config.profile.icon.clone(),
-            java_args: self.config.profile.jvm_args.clone(),
+            icon: self.config.get_profile().icon.clone(),
+            java_args: self.config.get_profile().jvm_args.clone(),
             java_dir: None,
             last_used: Some(now_rounded),
-            last_version_id: self.config.profile.version.clone(),
-            name: self.config.profile.name.clone(),
+            last_version_id: self.config.get_profile().version.clone(),
+            name: self.config.get_profile().name.clone(),
             resolution: None,
             skip_jre_version_check: None,
             profile_type: "custom".to_string(),
@@ -397,7 +560,10 @@ impl Installer {
             .context("Failed to serialize profiles")?;
         fs::write(&profiles_path, profiles_json)
             .context("Failed to write launcher_profiles.json")?;
-        log::info!("Added profile '{}' to launcher.", self.config.profile.name);
+        log::info!(
+            "Added profile '{}' to launcher.",
+            self.config.get_profile().name
+        );
 
         Ok(())
     }
@@ -546,12 +712,14 @@ struct ChangePhasePayload {
     phase: Phase,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 enum Phase {
     DownloadModLoader,
+    RemoveMods,
     DownloadMods,
     DownloadResources,
+    UpdateSettings,
     AddProfile,
     LaunchModLoader,
 }

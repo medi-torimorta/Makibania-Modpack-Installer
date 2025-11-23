@@ -17,7 +17,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { Translation } from "../../utils/localizer";
 
-export const installerModes = ["install"] as const;
+export const installerModes = ["install", "update"] as const;
 export type InstallerMode = (typeof installerModes)[number];
 
 type InstallerEvent =
@@ -25,8 +25,10 @@ type InstallerEvent =
       type: "changePhase";
       phase:
         | "downloadModLoader"
+        | "removeMods"
         | "downloadMods"
         | "downloadResources"
+        | "updateSettings"
         | "addProfile"
         | "launchModLoader";
     }
@@ -83,11 +85,17 @@ export default function InstallerScreen(props: InstallerScreenProps) {
               case "downloadModLoader":
                 setPhase(props.translation.phaseDownloadModLoader);
                 break;
+              case "removeMods":
+                setPhase(props.translation.phaseRemoveMods);
+                break;
               case "downloadMods":
                 setPhase(props.translation.phaseDownloadMods);
                 break;
               case "downloadResources":
                 setPhase(props.translation.phaseDownloadResources);
+                break;
+              case "updateSettings":
+                setPhase(props.translation.phaseUpdateSettings);
                 break;
               case "addProfile":
                 setPhase(props.translation.phaseAddProfile);
@@ -119,7 +127,11 @@ export default function InstallerScreen(props: InstallerScreenProps) {
       });
       try {
         await invoke("run_installer", { mode: props.mode });
-        setPhase(props.translation.phaseFinish);
+        setPhase(
+          props.mode === "install"
+            ? props.translation.phaseFinishInstall
+            : props.translation.phaseFinishUpdate
+        );
         setIsFinished(true);
       } catch (e: unknown) {
         setErrorMessage(typeof e === "string" ? e : String(e));

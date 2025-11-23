@@ -12,7 +12,6 @@
                     "--no-default-features"
                 ]
             },
-            "preLaunchTask": "ui:dev",
             "cwd": "${workspaceFolder}/sample",
             "env": {
                 "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS": "--remote-debugging-port=1422"

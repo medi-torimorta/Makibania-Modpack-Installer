@@ -4,11 +4,13 @@
         {
             "label": "ui:dev",
             "type": "shell",
-            "isBackground": true,
             "command": "pnpm",
             "args": [
                 "dev"
-            ]
+            ],
+            "runOptions": {
+                "runOn": "folderOpen"
+            }
         },
         {
             "label": "generate icons",

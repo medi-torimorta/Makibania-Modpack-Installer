@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=../config.schema.json
-schemaVersion: 1
+schemaVersion: 2
+packVersion: "1.0.0"
 profile:
   name: Example Modpack
   icon: Furnace

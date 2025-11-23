@@ -1,23 +1,29 @@
 use std::{
+    collections::HashMap,
     fs,
     path::{Component, Path},
 };
 
 use anyhow::{bail, Context, Result};
+use semver::Version;
 use serde::{Deserialize, Serialize};
 
-pub const LATEST_SCHEMA_VERSION: u32 = 1;
+pub const LATEST_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModPackConfig {
-    pub schema_version: u32,
-    pub profile: Profile,
-    pub mod_loader: ModLoader,
+    schema_version: u32,
+    pack_version: Version,
+    profile: Profile,
+    mod_loader: ModLoader,
     #[serde(default)]
-    pub mods: Vec<ModEntry>,
+    mods: Vec<ModEntry>,
     #[serde(default)]
-    pub resources: Vec<ResourceEntry>,
+    resources: Vec<ResourceEntry>,
+
+    #[serde(skip)]
+    mod_index: HashMap<String, usize>,
 }
 
 impl ModPackConfig {
@@ -27,10 +33,40 @@ impl ModPackConfig {
         let mut config: ModPackConfig =
             serde_yaml::from_str(&raw).context("Failed to parse config.yaml")?;
         config.validate()?;
+        // Build indexes
+        debug_assert!(config.mod_index.is_empty());
+        for (i, mod_entry) in config.mods.iter().enumerate() {
+            let key = Self::mod_key(&mod_entry.source);
+            config.mod_index.insert(key, i);
+        }
         Ok(config)
     }
 
-    pub fn validate(&mut self) -> Result<()> {
+    pub fn get_pack_version(&self) -> &Version {
+        &self.pack_version
+    }
+
+    pub fn get_profile(&self) -> &Profile {
+        &self.profile
+    }
+
+    pub fn get_mod_loader(&self) -> &ModLoader {
+        &self.mod_loader
+    }
+
+    pub fn has_mod(&self, source: &SourceType) -> bool {
+        self.mod_index.contains_key(&Self::mod_key(source))
+    }
+
+    pub fn get_mods(&self) -> &Vec<ModEntry> {
+        &self.mods
+    }
+
+    pub fn get_resources(&self) -> &Vec<ResourceEntry> {
+        &self.resources
+    }
+
+    fn validate(&mut self) -> Result<()> {
         if self.schema_version > LATEST_SCHEMA_VERSION {
             bail!(
                 "Unsupported config schema version '{}' (expected version {} or lower)",
@@ -38,7 +74,6 @@ impl ModPackConfig {
                 LATEST_SCHEMA_VERSION
             );
         }
-
         self.profile.validate()?;
         self.mod_loader.validate()?;
         for entry in self.mods.iter_mut() {
@@ -49,6 +84,16 @@ impl ModPackConfig {
         }
 
         Ok(())
+    }
+
+    fn mod_key(source: &SourceType) -> String {
+        match source {
+            SourceType::Curseforge {
+                project_id,
+                file_id,
+            } => format!("cf:{project_id}:{file_id}"),
+            SourceType::Direct { url } => format!("direct:{url}"),
+        }
     }
 }
 

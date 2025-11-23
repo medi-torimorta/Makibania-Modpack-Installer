@@ -17,10 +17,14 @@ export interface Translation {
   phaseDownloadModLoader: string;
   phaseDownloadMods: string;
   phaseDownloadResources: string;
-  phaseFinish: string;
+  phaseFinishInstall: string;
+  phaseFinishUpdate: string;
   phaseLaunchModLoader: string;
+  phaseRemoveMods: string;
   phaseStart: string;
+  phaseUpdateSettings: string;
   titleMessage: string;
+  update: string;
 }
 
 export const translations: Record<Language, Translation> = {
@@ -41,10 +45,14 @@ export const translations: Record<Language, Translation> = {
     phaseDownloadModLoader: "Modローダーをダウンロード中...",
     phaseDownloadMods: "Modをダウンロード中...",
     phaseDownloadResources: "リソースをダウンロード中...",
-    phaseFinish: "インストールが完了しました。",
+    phaseFinishInstall: "インストールが完了しました。",
+    phaseFinishUpdate: "アップデートが完了しました。",
     phaseLaunchModLoader: "Modローダーを起動中...",
+    phaseRemoveMods: "不要なModを削除中...",
     phaseStart: "インストールを開始しています...",
+    phaseUpdateSettings: "設定を更新中...",
     titleMessage: "実行するモードを選択してください。",
+    update: "アップデート",
   },
   en: {
     alertOnLaunchModLoader: "The mod loader will be launched. Please ensure that 'Install client' is checked, then click 'Next'.",
@@ -64,8 +72,12 @@ export const translations: Record<Language, Translation> = {
     phaseDownloadMods: "Downloading mods...",
     phaseDownloadResources: "Downloading resources...",
     phaseLaunchModLoader: "Launching mod loader...",
-    phaseFinish: "Installation finished.",
+    phaseFinishInstall: "Installation finished.",
+    phaseFinishUpdate: "Update finished.",
+    phaseRemoveMods: "Removing unnecessary mods...",
     phaseStart: "Starting installation...",
+    phaseUpdateSettings: "Updating settings...",
     titleMessage: "Choose how you want to proceed.",
+    update: "Update",
   },
 };
