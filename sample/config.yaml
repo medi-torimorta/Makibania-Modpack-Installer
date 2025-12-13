@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../config.schema.json
-schemaVersion: 2
+schemaVersion: 3
 packVersion: "1.2.1"
 profile:
   name: Makibania

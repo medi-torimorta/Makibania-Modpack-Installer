@@ -1,13 +1,15 @@
 use std::{
     fs::{self, File},
-    io::{Read, Write},
+    io::Write,
     path::{Path, PathBuf},
     time::Duration,
 };
 
 use anyhow::{bail, Context, Result};
-use reqwest::blocking::{Client, Response};
+use futures_util::StreamExt;
+use reqwest::{Client, Response};
 use sha1::{Digest, Sha1};
+use urlencoding;
 
 const DOWNLOAD_TIMEOUT_SECS: u64 = 10;
 
@@ -31,7 +33,7 @@ impl DownloadManager {
         Ok(Self { client })
     }
 
-    pub fn download_to_dir<F>(
+    pub async fn download_to_dir<F>(
         &self,
         url: &str,
         temp_dir: &Path,
@@ -40,12 +42,13 @@ impl DownloadManager {
     where
         F: FnMut(DownloadProgress) -> Result<()>,
     {
-        let mut response = self
+        let response = self
             .client
             .get(url)
             .send()
+            .await
             .with_context(|| format!("Failed to download from {url}"))?;
-        ensure_success(&mut response, url)?;
+        let response = ensure_success(response, url).await?;
         let file_name = extract_file_name(&response)?;
         let destination = temp_dir.join(&file_name);
         fs::create_dir_all(temp_dir)
@@ -59,15 +62,12 @@ impl DownloadManager {
         let total_bytes = response.content_length();
         let mut received_bytes = 0u64;
         let mut hasher = Sha1::new();
-        let mut buffer = [0u8; 8192];
-        loop {
-            let read = response.read(&mut buffer)?;
-            if read == 0 {
-                break;
-            }
-            file.write_all(&buffer[..read])?;
-            hasher.update(&buffer[..read]);
-            received_bytes += read as u64;
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.with_context(|| format!("Failed to read chunk from {url}"))?;
+            file.write_all(&chunk)?;
+            hasher.update(&chunk);
+            received_bytes += chunk.len() as u64;
             if let Some(callback) = progress_callback.as_mut() {
                 callback(DownloadProgress {
                     received_bytes,
@@ -110,7 +110,7 @@ fn extract_file_name(response: &Response) -> Result<String> {
                 // Remove query parameters if present
                 let file_name = last_segment.split('?').next().unwrap_or(last_segment);
                 if !file_name.is_empty() {
-                    return Ok(file_name.to_string());
+                    return Ok(urlencoding::decode(file_name)?.to_string());
                 }
             }
         }
@@ -118,17 +118,23 @@ fn extract_file_name(response: &Response) -> Result<String> {
     bail!("Could not determine file name from final URL '{url}' or response headers")
 }
 
-fn ensure_success(response: &mut Response, url: &str) -> Result<()> {
+async fn ensure_success(response: Response, url: &str) -> Result<Response> {
     if response.status().is_success() {
-        return Ok(());
+        return Ok(response);
     }
     let status = response.status();
-    let mut body_snippet = String::new();
-    if response.read_to_string(&mut body_snippet).is_err() || body_snippet.is_empty() {
-        body_snippet = "<failed to read body>".to_string();
-    } else if body_snippet.len() > 512 {
-        body_snippet.truncate(512);
-    }
+    let body_snippet = match response.text().await {
+        Ok(body) => {
+            if body.is_empty() {
+                "<empty body>".to_string()
+            } else if body.len() > 512 {
+                format!("{}...", &body[..512])
+            } else {
+                body
+            }
+        }
+        Err(_) => "<failed to read body>".to_string(),
+    };
     bail!("Request to {url} failed with status {status}. Body snippet: {body_snippet}");
 }
 

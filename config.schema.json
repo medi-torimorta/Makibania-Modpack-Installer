@@ -97,17 +97,25 @@
                         "type": "string",
                         "enum": [
                             "curseforge",
+                            "modrinth",
                             "direct"
                         ],
                         "description": "Source type of the mod"
                     },
                     "projectId": {
-                        "type": "integer",
-                        "description": "CurseForge project ID (required if type is 'curseforge')"
+                        "type": [
+                            "integer",
+                            "string"
+                        ],
+                        "description": "Project ID (required if type is 'curseforge' or 'modrinth')"
                     },
                     "fileId": {
                         "type": "integer",
                         "description": "CurseForge file ID (required if type is 'curseforge')"
+                    },
+                    "versionId": {
+                        "type": "string",
+                        "description": "Modrinth version ID (required if type is 'modrinth')"
                     },
                     "url": {
                         "type": "string",
@@ -141,7 +149,32 @@
                             "required": [
                                 "projectId",
                                 "fileId"
-                            ]
+                            ],
+                            "properties": {
+                                "projectId": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "if": {
+                            "properties": {
+                                "type": {
+                                    "const": "modrinth"
+                                }
+                            }
+                        },
+                        "then": {
+                            "required": [
+                                "projectId",
+                                "versionId"
+                            ],
+                            "properties": {
+                                "projectId": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     },
                     {
@@ -182,17 +215,25 @@
                         "type": "string",
                         "enum": [
                             "curseforge",
+                            "modrinth",
                             "direct"
                         ],
                         "description": "Source type of the resource"
                     },
                     "projectId": {
-                        "type": "integer",
-                        "description": "CurseForge project ID (required if type is 'curseforge')"
+                        "type": [
+                            "integer",
+                            "string"
+                        ],
+                        "description": "Project ID (required if type is 'curseforge' or 'modrinth')"
                     },
                     "fileId": {
                         "type": "integer",
                         "description": "CurseForge file ID (required if type is 'curseforge')"
+                    },
+                    "versionId": {
+                        "type": "string",
+                        "description": "Modrinth version ID (required if type is 'modrinth')"
                     },
                     "url": {
                         "type": "string",
@@ -235,7 +276,32 @@
                             "required": [
                                 "projectId",
                                 "fileId"
-                            ]
+                            ],
+                            "properties": {
+                                "projectId": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "if": {
+                            "properties": {
+                                "type": {
+                                    "const": "modrinth"
+                                }
+                            }
+                        },
+                        "then": {
+                            "required": [
+                                "projectId",
+                                "versionId"
+                            ],
+                            "properties": {
+                                "projectId": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     },
                     {

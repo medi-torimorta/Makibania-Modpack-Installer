@@ -1,0 +1,26 @@
+// Project-local debug tasks
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  {
+    "label": "Launch Installer",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/sample/makibania-modpack-installer.exe",
+    "cwd": "$ZED_WORKTREE_ROOT/sample",
+    "build": "copy binary",
+    "env": {
+      "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS": "--remote-debugging-port=1422"
+    }
+  },
+  {
+    "label": "Attach to WebView",
+    "adapter": "JavaScript",
+    "type": "chrome",
+    "request": "attach",
+    "port": 1422,
+    "timeout": 300000,
+    "webRoot": "$ZED_WORKTREE_ROOT"
+  }
+]

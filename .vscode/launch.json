@@ -5,14 +5,12 @@
             "type": "lldb",
             "request": "launch",
             "name": "Launch Installer",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--manifest-path=./src-tauri/Cargo.toml",
-                    "--no-default-features"
-                ]
+            "program": "${workspaceFolder}/sample/makibania-modpack-installer",
+            "windows": {
+                "program": "${workspaceFolder}/sample/makibania-modpack-installer.exe"
             },
             "cwd": "${workspaceFolder}/sample",
+            "preLaunchTask": "prepare debug",
             "env": {
                 "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS": "--remote-debugging-port=1432"
             }

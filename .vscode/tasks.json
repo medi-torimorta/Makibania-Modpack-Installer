@@ -13,6 +13,64 @@
             }
         },
         {
+            "label": "build: debug",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "build",
+                "--manifest-path=${workspaceFolder}/src-tauri/Cargo.toml",
+                "--no-default-features"
+            ],
+            "problemMatcher": ["$rustc"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "build: release",
+            "type": "shell",
+            "command": "pnpm",
+            "args": [
+                "tauri",
+                "build"
+            ],
+            "osx": {
+                "args": [
+                    "tauri",
+                    "build",
+                    "--target",
+                    "universal-apple-darwin"
+                ]
+            },
+            "problemMatcher": ["$rustc"]
+        },
+        {
+            "label": "copy binary",
+            "type": "shell",
+            "command": "cp",
+            "args": [
+                "${workspaceFolder}/src-tauri/target/debug/makibania-modpack-installer",
+                "${workspaceFolder}/sample/"
+            ],
+            "windows": {
+                "args": [
+                    "${workspaceFolder}/src-tauri/target/debug/makibania-modpack-installer.exe",
+                    "${workspaceFolder}/sample/"
+                ]
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "prepare debug",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "build: debug",
+                "copy binary"
+            ],
+            "problemMatcher": []
+        },
+        {
             "label": "generate icons",
             "type": "shell",
             "command": "pnpm",

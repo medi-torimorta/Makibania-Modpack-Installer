@@ -7,12 +7,15 @@ export interface Translation {
   appTitle: string;
   close: string;
   complete: string;
+  error: string;
   install: string;
+  installFailed: string;
   installerTitle: string;
   languageOptionEn: string;
   languageOptionJa: string;
   languageSelectionLabel: string;
   occurredError: string;
+  openLogFolder: string;
   phaseAddProfile: string;
   phaseDownloadModLoader: string;
   phaseDownloadMods: string;
@@ -25,6 +28,7 @@ export interface Translation {
   phaseUpdateSettings: string;
   titleMessage: string;
   update: string;
+  updateFailed: string;
 }
 
 export const translations: Record<Language, Translation> = {
@@ -35,12 +39,15 @@ export const translations: Record<Language, Translation> = {
     appTitle: "Makibania Modpack Installer",
     close: "閉じる",
     complete: "完了",
+    error: "エラー",
     install: "インストール",
+    installFailed: "インストールに失敗しました。\n詳細: ",
     installerTitle: "インストーラー",
     languageOptionEn: "英語",
     languageOptionJa: "日本語",
     languageSelectionLabel: "表示言語",
     occurredError: "エラーが発生しました。\n詳細: ",
+    openLogFolder: "ログフォルダを開く",
     phaseAddProfile: "プロファイルを追加中...",
     phaseDownloadModLoader: "Modローダーをダウンロード中...",
     phaseDownloadMods: "Modをダウンロード中...",
@@ -53,6 +60,7 @@ export const translations: Record<Language, Translation> = {
     phaseUpdateSettings: "設定を更新中...",
     titleMessage: "実行するモードを選択してください。",
     update: "アップデート",
+    updateFailed: "アップデートに失敗しました。\n詳細: ",
   },
   en: {
     alertOnLaunchModLoader: "The mod loader will be launched. Please ensure that 'Install client' is checked, then click 'Next'.",
@@ -61,12 +69,15 @@ export const translations: Record<Language, Translation> = {
     appTitle: "Makibania Modpack Installer",
     close: "Close",
     complete: "Complete",
+    error: "Error",
     install: "Install",
+    installFailed: "Installation failed.\nDetails: ",
     installerTitle: "Installer",
     languageOptionEn: "English",
     languageOptionJa: "Japanese",
     languageSelectionLabel: "Display language",
     occurredError: "An error has occurred.\nDetails: ",
+    openLogFolder: "Open log folder",
     phaseAddProfile: "Adding profile...",
     phaseDownloadModLoader: "Downloading mod loader...",
     phaseDownloadMods: "Downloading mods...",
@@ -79,5 +90,6 @@ export const translations: Record<Language, Translation> = {
     phaseUpdateSettings: "Updating settings...",
     titleMessage: "Choose how you want to proceed.",
     update: "Update",
+    updateFailed: "Update failed.\nDetails: ",
   },
 };

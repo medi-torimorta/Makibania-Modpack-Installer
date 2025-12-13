@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
     env,
+    fmt::{self, Display},
     fs::{self, File},
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -12,16 +13,10 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use zip::ZipArchive;
 
+use crate::config::{ModPackConfig, ResourceEntry, Side};
 use crate::downloader::{DownloadManager, DownloadProgress};
 use crate::launcher::{LauncherProfile, LauncherProfiles};
 use crate::state::{InstallerState, ModLoaderState, ModState, ResourceState};
-use crate::{
-    config::{ModPackConfig, ResourceEntry},
-    APP_FOLDER_NAME,
-};
-
-const STATE_FILE_NAME: &str = "installer-state.json";
-const TEMP_DIR_NAME: &str = ".temp";
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,12 +25,22 @@ pub enum InstallerMode {
     Update,
 }
 
+impl Display for InstallerMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InstallerMode::Install => write!(f, "Install"),
+            InstallerMode::Update => write!(f, "Update"),
+        }
+    }
+}
+
 pub struct Installer {
     mode: InstallerMode,
     app: AppHandle,
     download_manager: DownloadManager,
     config: ModPackConfig,
     install_dir: PathBuf,
+    side: Side,
     temp_dir: PathBuf,
     state_path: PathBuf,
 }
@@ -46,24 +51,27 @@ impl Installer {
         app: AppHandle,
         config_path: PathBuf,
         install_dir: PathBuf,
+        side: Side,
+        app_dir: PathBuf,
+        state_path: PathBuf,
     ) -> Result<Self> {
-        let app_dir = install_dir.join(APP_FOLDER_NAME);
+        assert_ne!(&side, &Side::Both);
         Ok(Self {
             mode,
             app,
             download_manager: DownloadManager::new()?,
             config: ModPackConfig::load_from_path(&config_path)?,
             install_dir: install_dir.clone(),
-            temp_dir: app_dir.join(TEMP_DIR_NAME),
-            state_path: app_dir.join(STATE_FILE_NAME),
+            side,
+            temp_dir: app_dir.join(".temp"),
+            state_path,
         })
     }
 
-    pub fn can_install(cwd: &Path) -> Result<()> {
-        if !cwd.join("config.yaml").exists() {
+    pub fn can_install(config_path: &Path, state_path: &Path) -> Result<()> {
+        if !config_path.exists() {
             bail!("Config file is not found.");
         }
-        let state_path = cwd.join(APP_FOLDER_NAME).join(STATE_FILE_NAME);
         if !state_path.exists() {
             return Ok(());
         }
@@ -80,9 +88,8 @@ impl Installer {
         }
     }
 
-    pub fn can_update(cwd: &Path) -> Result<()> {
-        let config = ModPackConfig::load_from_path(&cwd.join("config.yaml"))?;
-        let state_path = cwd.join(APP_FOLDER_NAME).join(STATE_FILE_NAME);
+    pub fn can_update(config_path: &Path, state_path: &Path) -> Result<()> {
+        let config = ModPackConfig::load_from_path(&config_path)?;
         Self::can_update_state(&config, &state_path).map(|_| ())
     }
 
@@ -106,15 +113,15 @@ impl Installer {
         }
     }
 
-    pub fn run(mut self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
         self.emit_progress(0.);
         match self.mode {
-            InstallerMode::Install => self.run_install(),
-            InstallerMode::Update => self.run_update(),
+            InstallerMode::Install => self.run_install().await,
+            InstallerMode::Update => self.run_update().await,
         }
     }
 
-    fn run_install(&mut self) -> Result<()> {
+    async fn run_install(&mut self) -> Result<()> {
         log::info!("Starting installation...");
         self.prepare_temp_dir()?;
         let installer_version = self.app.package_info().version.clone();
@@ -153,15 +160,17 @@ impl Installer {
                     );
                 }
             } else {
-                let file_name = self.ensure_download(
-                    &loader_config.url,
-                    &loader_config.name,
-                    &loader_config.hash,
-                    &self.install_dir,
-                    false,
-                    completed_steps,
-                    total_steps,
-                )?;
+                let file_name = self
+                    .ensure_download(
+                        &loader_config.url,
+                        &loader_config.name,
+                        &loader_config.hash,
+                        &self.install_dir,
+                        false,
+                        completed_steps,
+                        total_steps,
+                    )
+                    .await?;
                 state.set_mod_loader(ModLoaderState {
                     file_name,
                     url: loader_config.url.clone(),
@@ -173,10 +182,12 @@ impl Installer {
             self.emit_progress(completed_steps as f32 / total_steps as f32);
             // Mods
             self.emit_change_phase(Phase::DownloadMods);
-            self.download_mods(&mut state, &mut completed_steps, total_steps)?;
+            self.download_mods(&mut state, &mut completed_steps, total_steps)
+                .await?;
             // Resources
             self.emit_change_phase(Phase::DownloadResources);
-            self.download_resources(&mut state, &mut completed_steps, total_steps)?;
+            self.download_resources(&mut state, &mut completed_steps, total_steps)
+                .await?;
             debug_assert_eq!(completed_steps, total_steps);
         }
         self.emit_progress(1.);
@@ -201,7 +212,7 @@ impl Installer {
         Ok(())
     }
 
-    fn run_update(&mut self) -> Result<()> {
+    async fn run_update(&mut self) -> Result<()> {
         log::info!("Starting update...");
         self.prepare_temp_dir()?;
         let mut state = Self::can_update_state(&self.config, &self.state_path)?;
@@ -232,13 +243,16 @@ impl Installer {
         }
         // Add mods
         self.emit_change_phase(Phase::DownloadMods);
-        self.download_mods(&mut state, &mut completed_steps, total_steps)?;
+        self.download_mods(&mut state, &mut completed_steps, total_steps)
+            .await?;
         // Add resources
         self.emit_change_phase(Phase::DownloadResources);
-        self.download_resources(&mut state, &mut completed_steps, total_steps)?;
+        self.download_resources(&mut state, &mut completed_steps, total_steps)
+            .await?;
         // Update settings
         self.emit_change_phase(Phase::UpdateSettings);
-        self.update_settings(&mut state, &mut completed_steps, total_steps)?;
+        self.update_settings(&mut state, &mut completed_steps, total_steps)
+            .await?;
         debug_assert_eq!(completed_steps, total_steps);
         self.emit_progress(1.);
         state.set_installer_version(&self.app.package_info().version);
@@ -287,8 +301,18 @@ impl Installer {
         if mode == InstallerMode::Update {
             steps += state.get_mod_count() as u32;
         }
-        steps += self.config.get_mods().len() as u32;
-        steps += self.config.get_resources().len() as u32;
+        steps += self
+            .config
+            .get_mods()
+            .iter()
+            .filter(|mod_entry| mod_entry.should_install(&self.side))
+            .count() as u32;
+        steps += self
+            .config
+            .get_resources()
+            .iter()
+            .filter(|resource_entry| resource_entry.should_install(&self.side))
+            .count() as u32;
         if mode == InstallerMode::Update {
             steps += Self::get_update_settings_steps(
                 &state.get_pack_version(),
@@ -298,7 +322,7 @@ impl Installer {
         steps
     }
 
-    fn ensure_download(
+    async fn ensure_download(
         &self,
         url: &str,
         name: &str,
@@ -310,23 +334,26 @@ impl Installer {
     ) -> Result<String> {
         log::info!("Downloading {name} from {url} ...");
         self.emit_change_detail(name);
-        let outcome = self.download_manager.download_to_dir(
-            url,
-            &self.temp_dir,
-            Some(move |progress: DownloadProgress| -> Result<()> {
-                if progress.total_bytes.is_none() {
-                    return Ok(());
-                }
-                let total = progress.total_bytes.unwrap();
-                let fraction = if total != 0 {
-                    progress.received_bytes as f32 / total as f32
-                } else {
-                    0.0
-                };
-                self.emit_progress((completed_steps as f32 + fraction) / total_steps as f32);
-                Ok(())
-            }),
-        )?;
+        let outcome = self
+            .download_manager
+            .download_to_dir(
+                url,
+                &self.temp_dir,
+                Some(move |progress: DownloadProgress| -> Result<()> {
+                    if progress.total_bytes.is_none() {
+                        return Ok(());
+                    }
+                    let total = progress.total_bytes.unwrap();
+                    let fraction = if total != 0 {
+                        progress.received_bytes as f32 / total as f32
+                    } else {
+                        0.0
+                    };
+                    self.emit_progress((completed_steps as f32 + fraction) / total_steps as f32);
+                    Ok(())
+                }),
+            )
+            .await?;
         let file_name = outcome
             .path
             .file_name()
@@ -361,7 +388,7 @@ impl Installer {
         self.install_dir.join(&entry.target_dir)
     }
 
-    fn download_mods(
+    async fn download_mods(
         &self,
         state: &mut InstallerState,
         completed_steps: &mut u32,
@@ -369,6 +396,9 @@ impl Installer {
     ) -> Result<()> {
         let mods_dir = self.get_mods_dir();
         for mod_entry in self.config.get_mods() {
+            if !mod_entry.should_install(&self.side) {
+                continue;
+            }
             let needs_download = state.get_mod(mod_entry).map_or(true, |downloaded_mod| {
                 if !downloaded_mod.equals(mod_entry, false) {
                     log::warn!(
@@ -385,16 +415,18 @@ impl Installer {
                 }
             });
             if needs_download {
-                let url = mod_entry.source.get_download_url();
-                let file_name = self.ensure_download(
-                    &url,
-                    &mod_entry.name,
-                    &mod_entry.hash,
-                    &mods_dir,
-                    false,
-                    *completed_steps,
-                    total_steps,
-                )?;
+                let url = mod_entry.source.get_download_url().await?;
+                let file_name = self
+                    .ensure_download(
+                        &url,
+                        &mod_entry.name,
+                        &mod_entry.hash,
+                        &mods_dir,
+                        false,
+                        *completed_steps,
+                        total_steps,
+                    )
+                    .await?;
                 state.add_mod(ModState {
                     file_name,
                     source: mod_entry.source.clone(),
@@ -408,13 +440,16 @@ impl Installer {
         Ok(())
     }
 
-    fn download_resources(
+    async fn download_resources(
         &self,
         state: &mut InstallerState,
         completed_steps: &mut u32,
         total_steps: u32,
     ) -> Result<()> {
         for resource_entry in self.config.get_resources() {
+            if !resource_entry.should_install(&self.side) {
+                continue;
+            }
             let needs_download =
                 state
                     .get_resource(resource_entry)
@@ -434,17 +469,19 @@ impl Installer {
                         }
                     });
             if needs_download {
-                let url = resource_entry.source.get_download_url();
+                let url = resource_entry.source.get_download_url().await?;
                 let target_dir = self.get_resource_dir(resource_entry);
-                let file_name = self.ensure_download(
-                    &url,
-                    &resource_entry.name,
-                    &resource_entry.hash,
-                    &target_dir,
-                    resource_entry.decompress,
-                    *completed_steps,
-                    total_steps,
-                )?;
+                let file_name = self
+                    .ensure_download(
+                        &url,
+                        &resource_entry.name,
+                        &resource_entry.hash,
+                        &target_dir,
+                        resource_entry.decompress,
+                        *completed_steps,
+                        total_steps,
+                    )
+                    .await?;
                 state.add_resource(ResourceState {
                     file_name,
                     source: resource_entry.source.clone(),
@@ -460,7 +497,7 @@ impl Installer {
         Ok(())
     }
 
-    fn update_settings(
+    async fn update_settings(
         &self,
         state: &mut InstallerState,
         completed_steps: &mut u32,
@@ -481,7 +518,8 @@ impl Installer {
                 true,
                 *completed_steps,
                 total_steps,
-            )?;
+            )
+            .await?;
             *completed_steps += 1u32;
             self.emit_progress(*completed_steps as f32 / total_steps as f32);
         }
@@ -498,7 +536,8 @@ impl Installer {
                 true,
                 *completed_steps,
                 total_steps,
-            )?;
+            )
+            .await?;
             *completed_steps += 1u32;
             self.emit_progress(*completed_steps as f32 / total_steps as f32)
         }
@@ -546,14 +585,22 @@ impl Installer {
     }
 
     fn add_launcher_profile(&self) -> Result<()> {
-        if !cfg!(target_os = "windows") {
-            bail!("Adding launcher profile is only supported on Windows.");
-        }
         log::info!("Adding launcher profile...");
-        let appdata = env::var("APPDATA").context("APPDATA environment variable not found")?;
-        let profiles_path = PathBuf::from(appdata)
-            .join(".minecraft")
-            .join("launcher_profiles.json");
+        let profiles_path = if cfg!(target_os = "windows") {
+            let appdata = env::var("APPDATA").context("APPDATA environment variable not found")?;
+            PathBuf::from(appdata)
+                .join(".minecraft")
+                .join("launcher_profiles.json")
+        } else if cfg!(target_os = "macos") {
+            let home = env::var("HOME").context("HOME environment variable not found")?;
+            PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("minecraft")
+                .join("launcher_profiles.json")
+        } else {
+            bail!("Unsupported operating system: {}", env::consts::OS);
+        };
         if !profiles_path.exists() {
             bail!("Launcher profiles file not found. ");
         }
@@ -695,8 +742,8 @@ fn find_java() -> Option<PathBuf> {
         }
     }
     // 2. Check Minecraft Launcher App runtime
+    log::info!("Searching for java from minecraft...");
     if cfg!(target_os = "windows") {
-        log::info!("Searching for java from minecraft...");
         match env::var("LOCALAPPDATA") {
             Ok(local_appdata) => {
                 let runtimes_dir = PathBuf::from(local_appdata)
@@ -711,6 +758,22 @@ fn find_java() -> Option<PathBuf> {
             }
             Err(error) => {
                 log::warn!("LOCALAPPDATA environment variable not found: {error:?}");
+            }
+        }
+    } else if cfg!(target_os = "macos") {
+        match env::var("HOME") {
+            Ok(home) => {
+                let runtimes_dir = PathBuf::from(home)
+                    .join("Library")
+                    .join("Application Support")
+                    .join("minecraft")
+                    .join("runtime");
+                if let Some(java) = search_runtime_dir(&runtimes_dir) {
+                    return Some(java);
+                }
+            }
+            Err(error) => {
+                log::warn!("HOME environment variable not found: {error:?}");
             }
         }
     }

@@ -68,6 +68,10 @@ impl InstallerState {
                 project_id,
                 file_id,
             } => format!("cf:{project_id}:{file_id}"),
+            SourceType::Modrinth {
+                project_id,
+                version_id,
+            } => format!("mr:{project_id}:{version_id}"),
             SourceType::Direct { url } => format!("direct:{url}"),
         }
     }
@@ -78,6 +82,10 @@ impl InstallerState {
                 project_id,
                 file_id,
             } => format!("cf:{project_id}:{file_id}"),
+            SourceType::Modrinth {
+                project_id,
+                version_id,
+            } => format!("mr:{project_id}:{version_id}"),
             SourceType::Direct { url } => format!("direct:{url}"),
         };
         (source_key, target_dir.to_string())
