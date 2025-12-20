@@ -290,6 +290,11 @@ impl Installer {
             // v1.2.1 update
             steps += 1; // Update configs
         }
+        let v1_3_0 = Version::parse("1.3.0").unwrap();
+        if now < &v1_3_0 && new >= &v1_3_0 {
+            // v1.3.0 update
+            steps += 13; // Update configs
+        }
         steps
     }
 
@@ -541,7 +546,57 @@ impl Installer {
             *completed_steps += 1u32;
             self.emit_progress(*completed_steps as f32 / total_steps as f32)
         }
-        self.emit_change_detail("");
+        let v1_3_0 = Version::parse("1.3.0").unwrap();
+        if now < &v1_3_0 && new >= &v1_3_0 {
+            // v1.3.0 update
+            log::info!("Updating config files for v1.3.0...");
+            for path in &[
+                PathBuf::from("fancymenu/customization/loading_makibania_default.txt"),
+                PathBuf::from("fancymenu/customization/options_makibania.txt"),
+                PathBuf::from("fancymenu/customization/title_makibania_default.txt"),
+                PathBuf::from("fancymenu/customization/universal_makibania_bg.txt"),
+                PathBuf::from("fancymenu/custom_gui_screens.txt"),
+                PathBuf::from("fancymenu/customizablemenus.txt"),
+                PathBuf::from("fancymenu/options.txt"),
+                PathBuf::from("fancymenu/user_variables.db"),
+                PathBuf::from("ftbquests/quests/chapters/welcome.snbt"),
+                PathBuf::from("ftbquests/quests/lang/en_us.snbt"),
+                PathBuf::from("ftbquests/quests/lang/ja_jp.snbt"),
+                PathBuf::from("ftbquests/quests/chapter_groups.snbt"),
+                PathBuf::from("ftbquests/quests/data.snbt"),
+            ] {
+                self.overwrite_config(path).await?;
+                *completed_steps += 1u32;
+                self.emit_progress(*completed_steps as f32 / total_steps as f32)
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn overwrite_config(&self, path: &Path) -> Result<()> {
+        log::info!("Overwriting config file: {}", path.display());
+        if !path.is_relative() {
+            log::error!("Config path must be relative: {}", path.display());
+            bail!("Config path must be relative: {}", path.display());
+        }
+        let original_path = self
+            .install_dir
+            .join("configureddefaults/config")
+            .join(path);
+        let target_path = self.install_dir.join("config").join(path);
+        if !original_path.exists() {
+            log::error!(
+                "Original config file does not exist: {}",
+                original_path.display()
+            );
+            bail!(
+                "Original config file does not exist: {}",
+                original_path.display()
+            );
+        }
+        fs::copy(&original_path, &target_path)?;
+        log::info!("Overwrote: {}", target_path.display());
 
         Ok(())
     }
