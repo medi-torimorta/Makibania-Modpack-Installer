@@ -295,6 +295,11 @@ impl Installer {
             // v1.3.0 update
             steps += 13; // Update configs
         }
+        let v1_3_2 = Version::parse("1.3.2").unwrap();
+        if now < &v1_3_2 && new >= &v1_3_2 {
+            // v1.3.2 update
+            steps += 4; // Update configs
+        }
         steps
     }
 
@@ -564,6 +569,21 @@ impl Installer {
                 PathBuf::from("ftbquests/quests/lang/ja_jp.snbt"),
                 PathBuf::from("ftbquests/quests/chapter_groups.snbt"),
                 PathBuf::from("ftbquests/quests/data.snbt"),
+            ] {
+                self.overwrite_config(path).await?;
+                *completed_steps += 1u32;
+                self.emit_progress(*completed_steps as f32 / total_steps as f32)
+            }
+        }
+        let v1_3_2 = Version::parse("1.3.2").unwrap();
+        if now < &v1_3_2 && new >= &v1_3_2 {
+            // v1.3.2 update
+            log::info!("Updating config files for v1.3.2...");
+            for path in &[
+                PathBuf::from("emojiful-client.toml"),
+                PathBuf::from("fancymenu/customization/title_makibania_1_3_0_sp1.txt"),
+                PathBuf::from("fancymenu/customization/title_makibania_1_3_0_sp2.txt"),
+                PathBuf::from("fancymenu/customization/title_makibania_1_3_0.txt"),
             ] {
                 self.overwrite_config(path).await?;
                 *completed_steps += 1u32;

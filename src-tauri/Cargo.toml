@@ -1,6 +1,6 @@
 [package]
 name = "makibania-modpack-installer"
-version = "3.2.1+1.3.0"
+version = "3.2.1+1.3.2"
 description = "An installer for Makibania's modpacks."
 authors = ["kyazuki"]
 edition = "2021"

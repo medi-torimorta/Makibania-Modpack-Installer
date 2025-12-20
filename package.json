@@ -1,7 +1,7 @@
 {
   "name": "makibania-modpack-installer",
   "private": true,
-  "version": "3.2.1+1.3.0",
+  "version": "3.2.1+1.3.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
