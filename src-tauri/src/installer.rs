@@ -300,6 +300,11 @@ impl Installer {
             // v1.3.2 update
             steps += 4; // Update configs
         }
+        let v1_4_0 = Version::parse("1.4.0").unwrap();
+        if now < &v1_4_0 && new >= &v1_4_0 {
+            // v1.4.0 update
+            steps += 8; // Update configs
+        }
         steps
     }
 
@@ -584,6 +589,25 @@ impl Installer {
                 PathBuf::from("fancymenu/customization/title_makibania_1_3_0_sp1.txt"),
                 PathBuf::from("fancymenu/customization/title_makibania_1_3_0_sp2.txt"),
                 PathBuf::from("fancymenu/customization/title_makibania_1_3_0.txt"),
+            ] {
+                self.overwrite_config(path).await?;
+                *completed_steps += 1u32;
+                self.emit_progress(*completed_steps as f32 / total_steps as f32)
+            }
+        }
+        let v1_4_0 = Version::parse("1.4.0").unwrap();
+        if now < &v1_4_0 && new >= &v1_4_0 {
+            // v1.4.0 update
+            log::info!("Updating config files for v1.4.0...");
+            for path in &[
+                PathBuf::from("fancymenu/customization/loading_makibania_mythica.txt"),
+                PathBuf::from("fancymenu/customization/loading_makibania_valentines.txt"),
+                PathBuf::from("fancymenu/customization/theme_selection_screen_layout.txt"),
+                PathBuf::from("fancymenu/customization/title_makibania_1_3_0_sp2.txt"),
+                PathBuf::from("fancymenu/customization/title_makibania_mythica.txt"),
+                PathBuf::from("fancymenu/customization/title_makibania_valentines.txt"),
+                PathBuf::from("fancymenu/customization/universal_makibania_bg.txt"),
+                PathBuf::from("fancymenu/user_variables.db"),
             ] {
                 self.overwrite_config(path).await?;
                 *completed_steps += 1u32;
