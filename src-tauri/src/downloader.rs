@@ -2,7 +2,6 @@ use std::{
     fs::{self, File},
     io::Write,
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 use anyhow::{bail, Context, Result};
@@ -10,8 +9,6 @@ use futures_util::StreamExt;
 use reqwest::{Client, Response};
 use sha1::{Digest, Sha1};
 use urlencoding;
-
-const DOWNLOAD_TIMEOUT_SECS: u64 = 10;
 
 #[derive(Clone)]
 pub struct DownloadManager {
@@ -27,7 +24,6 @@ pub struct DownloadProgress {
 impl DownloadManager {
     pub fn new() -> Result<Self> {
         let client = Client::builder()
-            .timeout(Duration::from_secs(DOWNLOAD_TIMEOUT_SECS))
             .build()
             .context("Failed to build HTTP client")?;
         Ok(Self { client })
