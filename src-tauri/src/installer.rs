@@ -305,6 +305,11 @@ impl Installer {
             // v1.4.0 update
             steps += 8; // Update configs
         }
+        let v2_0_0 = Version::parse("2.0.0").unwrap();
+        if now < &v2_0_0 && new >= &v2_0_0 {
+            // v2.0.0 update
+            steps += 1; // Update configs
+        }
         steps
     }
 
@@ -609,6 +614,16 @@ impl Installer {
                 PathBuf::from("fancymenu/customization/universal_makibania_bg.txt"),
                 PathBuf::from("fancymenu/user_variables.db"),
             ] {
+                self.overwrite_config(path).await?;
+                *completed_steps += 1u32;
+                self.emit_progress(*completed_steps as f32 / total_steps as f32)
+            }
+        }
+        let v2_0_0 = Version::parse("2.0.0").unwrap();
+        if now < &v2_0_0 && new >= &v2_0_0 {
+            // v2.0.0 update
+            log::info!("Updating config files for v2.0.0...");
+            for path in &[PathBuf::from("fancymenu/user_variables.db")] {
                 self.overwrite_config(path).await?;
                 *completed_steps += 1u32;
                 self.emit_progress(*completed_steps as f32 / total_steps as f32)
