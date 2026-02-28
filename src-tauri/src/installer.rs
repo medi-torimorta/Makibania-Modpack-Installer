@@ -310,6 +310,11 @@ impl Installer {
             // v2.0.0 update
             steps += 1; // Update configs
         }
+        let v2_1_0 = Version::parse("2.1.0").unwrap();
+        if now < &v2_1_0 && new >= &v2_1_0 {
+            // v2.1.0 update
+            steps += 2; // Update configs
+        }
         steps
     }
 
@@ -624,6 +629,19 @@ impl Installer {
             // v2.0.0 update
             log::info!("Updating config files for v2.0.0...");
             for path in &[PathBuf::from("fancymenu/user_variables.db")] {
+                self.overwrite_config(path).await?;
+                *completed_steps += 1u32;
+                self.emit_progress(*completed_steps as f32 / total_steps as f32)
+            }
+        }
+        let v2_1_0 = Version::parse("2.1.0").unwrap();
+        if now < &v2_1_0 && new >= &v2_1_0 {
+            // v2.1.0 update
+            log::info!("Updating config files for v2.1.0...");
+            for path in &[
+                PathBuf::from("fancymenu/customization/theme_selection_screen_layout.txt"),
+                PathBuf::from("fancymenu/user_variables.db"),
+            ] {
                 self.overwrite_config(path).await?;
                 *completed_steps += 1u32;
                 self.emit_progress(*completed_steps as f32 / total_steps as f32)
