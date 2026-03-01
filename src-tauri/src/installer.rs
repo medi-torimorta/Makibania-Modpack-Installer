@@ -315,6 +315,11 @@ impl Installer {
             // v2.1.0 update
             steps += 2; // Update configs
         }
+        let v2_1_1 = Version::parse("2.1.1").unwrap();
+        if now < &v2_1_1 && new >= &v2_1_1 {
+            // v2.1.1 update
+            steps += 7; // Update configs
+        }
         steps
     }
 
@@ -641,6 +646,24 @@ impl Installer {
             for path in &[
                 PathBuf::from("fancymenu/customization/theme_selection_screen_layout.txt"),
                 PathBuf::from("fancymenu/user_variables.db"),
+            ] {
+                self.overwrite_config(path).await?;
+                *completed_steps += 1u32;
+                self.emit_progress(*completed_steps as f32 / total_steps as f32)
+            }
+        }
+        let v2_1_1 = Version::parse("2.1.1").unwrap();
+        if now < &v2_1_1 && new >= &v2_1_1 {
+            // v2.1.1 update
+            log::info!("Updating config files for v2.1.1...");
+            for path in &[
+                PathBuf::from("fancymenu/panoramas/makiba_town/panorama/panorama_0.png"),
+                PathBuf::from("fancymenu/panoramas/makiba_town/panorama/panorama_1.png"),
+                PathBuf::from("fancymenu/panoramas/makiba_town/panorama/panorama_2.png"),
+                PathBuf::from("fancymenu/panoramas/makiba_town/panorama/panorama_3.png"),
+                PathBuf::from("fancymenu/panoramas/makiba_town/panorama/panorama_4.png"),
+                PathBuf::from("fancymenu/panoramas/makiba_town/panorama/panorama_5.png"),
+                PathBuf::from("wover/client.json"),
             ] {
                 self.overwrite_config(path).await?;
                 *completed_steps += 1u32;
