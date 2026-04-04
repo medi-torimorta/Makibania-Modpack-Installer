@@ -320,6 +320,11 @@ impl Installer {
             // v2.1.1 update
             steps += 7; // Update configs
         }
+        let v2_2_0 = Version::parse("2.2.0").unwrap();
+        if now < &v2_2_0 && new >= &v2_2_0 {
+            // v2.2.0 update
+            steps += 1; // Update configs
+        }
         steps
     }
 
@@ -665,6 +670,18 @@ impl Installer {
                 PathBuf::from("fancymenu/panoramas/makiba_town/panorama/panorama_5.png"),
                 PathBuf::from("wover/client.json"),
             ] {
+                self.overwrite_config(path).await?;
+                *completed_steps += 1u32;
+                self.emit_progress(*completed_steps as f32 / total_steps as f32)
+            }
+        }
+        let v2_2_0 = Version::parse("2.2.0").unwrap();
+        if now < &v2_2_0 && new >= &v2_2_0 {
+            // v2.2.0 update
+            log::info!("Updating config files for v2.2.0...");
+            for path in &[PathBuf::from(
+                "fancymenu/slideshows/album/images/album8.png",
+            )] {
                 self.overwrite_config(path).await?;
                 *completed_steps += 1u32;
                 self.emit_progress(*completed_steps as f32 / total_steps as f32)
